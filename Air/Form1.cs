@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.ComponentModel;
 using System.Data;
 using System.Drawing;
+using System.IO;
 using System.IO.Ports;
 using System.Linq;
 using System.Text;
@@ -18,6 +19,8 @@ namespace Air
         private List<String> comport_list;
         private List<GroupBox> groupbox_list;
         private List<Label> label_list;
+        private List<StreamWriter> writer_list;
+        private List<Thread> thread_list;
 
 
         public Form1()
@@ -56,9 +59,14 @@ namespace Air
                     if ((serial_port[i] != null) && (!serial_port[i].IsOpen))
                     {
                         serial_port[i].Open();
+
                         ParameterizedThreadStart record_T = new ParameterizedThreadStart(record);
                         Thread record_Thread = new Thread(record_T);
-                        Console.WriteLine("Already start thread ");
+                        String store = DateTime.Now.ToString("yyyyMMddhhmm") + "-" + comport_list[i] + ".txt";
+                        StreamWriter writer = new StreamWriter(store, false);
+                        writer.Write("\t\t\tPM1\tPM2.5\tPM10\r\n");
+                        writer_list.Add(writer);
+                        thread_list.Add(record_Thread);
                         record_Thread.Start(i);
                     }
                 }
@@ -75,6 +83,7 @@ namespace Air
             int index = 0;
             int n = Convert.ToInt32(number);
             String str = "";
+            String date;
             while (true)
             {
                 buffer[index] = serial_port[n].ReadByte();
@@ -85,19 +94,25 @@ namespace Air
                     {
                         str += Convert.ToString(buffer[i], 16) + " ";
                     }
+                    Console.WriteLine("This is " + comport_list[n]);
                     label_list[n * 3].Text = "PM1 : " + buffer[5].ToString() + " ug/m3";
                     label_list[n * 3 + 1].Text = "PM2.5 : " + buffer[7].ToString() + " ug/m3";
                     label_list[n * 3 + 2].Text = "PM10 : " + buffer[9].ToString() + " ug/m3";
-                    label17.Text = (DateTime.Now.Year) + "/" + (DateTime.Now.Month) + "/" + (byte)(DateTime.Now.Day) + " " + (DateTime.Now.Hour) + ":" + (DateTime.Now.Minute) + ":" + (DateTime.Now.Second);
-                    /*Console.WriteLine(str);
-                    Console.WriteLine((DateTime.Now.Year) + "/" + (DateTime.Now.Month) + "/" + (byte)(DateTime.Now.Day) + " " + (DateTime.Now.Hour) + ":" + (DateTime.Now.Minute) + ":" + (DateTime.Now.Second));
+                    date = (DateTime.Now.Year) + "/" + (DateTime.Now.Month) + "/" + (byte)(DateTime.Now.Day) + " " + (DateTime.Now.Hour) + ":" + (DateTime.Now.Minute) + ":" + (DateTime.Now.Second);
+                    label17.Text = date;
+    
+                    Console.WriteLine(str);
+                    Console.WriteLine(date);
                     Console.WriteLine("PM1 (CF=1) = " + buffer[5]);
                     Console.WriteLine("PM2.5 (CF=1) = " + buffer[7]);
                     Console.WriteLine("PM10 (CF=1) = " + buffer[9]);
                     Console.WriteLine("PM1 = " + buffer[11]);
                     Console.WriteLine("PM2.5 = " + buffer[13]);
                     Console.WriteLine("PM10 = " + buffer[15]);
-                    Console.WriteLine("--------------------------------------");*/
+                    Console.WriteLine("--------------------------------------");
+
+                    
+                    writer_list[n].Write(string.Format("{0}\t{1}\t{2}\t{3}\r\n", date, buffer[5].ToString(), buffer[7].ToString(), buffer[9].ToString()));
 
                     //initial 
                     str = "";
@@ -117,6 +132,8 @@ namespace Air
             groupbox_list = new List<GroupBox>();
             label_list = new List<Label>();
             serial_port = new List<SerialPort>();
+            writer_list = new List<StreamWriter>();
+            thread_list = new List<Thread>();
 
             groupbox_list.Add(groupBox1);
             groupbox_list.Add(groupBox2);
@@ -142,6 +159,7 @@ namespace Air
 
 
             GetPortName();
+
             
         }
         private void button2_Click(object sender, EventArgs e)
@@ -161,6 +179,22 @@ namespace Air
         {
             CreateComport();
             OpenComport();
+        }
+        private void button4_Click(object sender, EventArgs e)
+        {
+            //close writer
+            foreach (StreamWriter sw in writer_list)
+            {
+                sw.Close();
+            }
+            //close thread
+            foreach (Thread t in thread_list)
+            {
+                if (t.IsAlive)
+                {
+                    t.Suspend();
+                }
+            }
         }
     }
 }
